@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>J.A.R.V.I.S.</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#02060d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{--bg:#02060d;--fg:#bfefff;--ac:#19c3ff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(circle at 50% 25%,var(--bg2,#06223a),var(--bg) 70%);color:var(--fg);font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center}
+canvas{width:min(78vw,340px);height:min(78vw,340px);margin-top:6px;flex:none}
+#st{font-size:12px;letter-spacing:3px;color:var(--ac);opacity:.8;margin:2px 0}
+#log{flex:1;width:min(92vw,560px);overflow-y:auto;font-size:15px;line-height:1.4;padding:8px}
+.j{color:var(--ac)}.u{color:#fff;opacity:.8}
+#opts{display:flex;gap:6px;width:100%}
+select{flex:1;min-width:0;background:rgba(255,255,255,.08);color:var(--fg);border:1px solid var(--ac);border-radius:8px;padding:6px;font-size:13px}
+#bar{display:flex;gap:6px;width:min(92vw,560px);padding:8px 0 12px}
+input{flex:1;min-width:0;background:rgba(255,255,255,.08);border:1px solid var(--ac);color:var(--fg);border-radius:10px;padding:10px;font-size:16px}
+button{background:var(--ac);border:0;border-radius:10px;padding:10px 12px;font-size:16px;color:#001}
+button.on{background:#7dff9c}
+#m,#lk{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:9}
+#lk{z-index:10}#m[hidden],#lk[hidden]{display:none}
+.pn{background:var(--bg);border:1px solid var(--ac);border-radius:14px;padding:14px;width:min(92vw,420px);max-height:85vh;overflow:auto;display:flex;flex-direction:column;gap:8px;box-sizing:border-box}
+.pn h3{margin:0;color:var(--ac)}.pn label{display:flex;flex-direction:column;font-size:13px;gap:3px}.r{display:flex;gap:6px}.r button{flex:1}
+</style>
+</head>
+<body>
+<canvas id="c" width="680" height="680"></canvas>
+<div id="st">SISTEMAS EN LÍNEA</div>
+<div id="log"></div>
+<div id="bar"><input id="in" placeholder="Diga «Jarvis…» o escriba" data-ip="ph" autocomplete="off"><button id="cfg" title="Ajustes">⚙️</button><button id="ear" title="Escucha permanente">👂</button><button id="mic">🎤</button><button id="go">➤</button></div>
+<div id="m" hidden><div class="pn"><h3 data-i="set"></h3>
+<label><span data-i="ui"></span><select id="ui"></select></label>
+<label><span data-i="prof"></span><select id="prof"></select></label>
+<div class="r"><button id="np" data-i="np"></button><button id="dp" data-i="dp"></button></div>
+<label><span data-i="pin"></span><input id="pin" type="password" inputmode="numeric" maxlength="8"></label>
+<label><span data-i="th"></span><select id="th"></select></label>
+<label><span data-i="lv"></span><div id="opts"><select id="lang"></select><select id="voice"></select></div></label>
+<label><span data-i="rt"></span><input id="rt" type="range" min=".6" max="1.4" step=".05"></label>
+<label><span data-i="pt"></span><input id="pt" type="range" min=".6" max="1.4" step=".05"></label>
+<label><span data-i="vl"></span><input id="vl" type="range" min="0" max="1" step=".05"></label>
+<label><span data-i="fs"></span><input id="fs" type="range" min="13" max="22" step="1"></label>
+<label><span><input type="checkbox" id="sg"> <span data-i="sg"></span></span></label>
+<div class="r"><button id="tv" data-i="tv"></button><button id="cl" data-i="cl"></button></div></div></div>
+<div id="lk" hidden><div class="pn"><h3>J.A.R.V.I.S.</h3><select id="lp"></select><input id="lpin" type="password" inputmode="numeric" placeholder="PIN"><div id="lmsg"></div><button id="lgo" data-i="go"></button></div></div>
+<script>
+const $=id=>document.getElementById(id),cv=$('c'),x=cv.getContext('2d'),log=$('log'),inp=$('in');
+let t=0,energy=.3,speaking=false,listening=false,wake=true,awake=0,rec=null,notes=[],todo=[],sw0=0;
+let DB={cur:'Isaac',p:{}};
+try{const d=JSON.parse(localStorage.getItem('jp'));if(d&&d.p)DB=d}catch(e){}
+if(!DB.p[DB.cur])DB.p[DB.cur]={};
+try{const o=JSON.parse(localStorage.getItem('jn')||'[]');if(o.length&&!DB.p[DB.cur].notes)DB.p[DB.cur].notes=o}catch(e){}
+const DEF={theme:'Azul (normal)',rate:.96,pitch:.92,vol:1,voice:'',lang:'es-ES',ui:'es',fs:15,greet:true,pin:'',notes:[]};
+const pf=()=>DB.p[DB.cur];
+function get(k){const v=pf()[k];return v===undefined?DEF[k]:v}
+function set(k,v){pf()[k]=v;saveDB()}
+function saveDB(){try{localStorage.setItem('jp',JSON.stringify(DB))}catch(e){}}
+const THEMES={'Azul (normal)':{bg:'#02060d',bg2:'#06223a',fg:'#bfefff',ac:'#19c3ff',c:[[235,252,255],[80,215,255],[20,130,230]]},
+'Verde':{bg:'#010a04',bg2:'#06301a',fg:'#caffdc',ac:'#2dff7a',c:[[235,255,240],[70,235,130],[10,150,70]]},
+'Naranja':{bg:'#0d0601',bg2:'#3a1c06',fg:'#ffe3c9',ac:'#ff9a1f',c:[[255,244,230],[255,160,50],[200,90,10]]},
+'Rojo':{bg:'#0d0202',bg2:'#3a0808',fg:'#ffd6d6',ac:'#ff3b3b',c:[[255,236,236],[255,80,80],[170,20,20]]},
+'Blanco y negro':{bg:'#000',bg2:'#222',fg:'#f2f2f2',ac:'#fff',c:[[255,255,255],[205,205,205],[110,110,110]]}};
+let TH=THEMES['Azul (normal)'];
+function applyTheme(){TH=THEMES[get('theme')]||THEMES['Azul (normal)'];const r=document.documentElement.style;r.setProperty('--bg',TH.bg);r.setProperty('--bg2',TH.bg2);r.setProperty('--fg',TH.fg);r.setProperty('--ac',TH.ac);document.body.style.fontSize=get('fs')+'px'}
+const LOC={es:'es-ES',en:'en-US',fr:'fr-FR',de:'de-DE',it:'it-IT',pt:'pt-BR',ro:'ro-RO'},UIN={es:'Español',en:'English',fr:'Français',de:'Deutsch',it:'Italiano',pt:'Português',ro:'Română'};
+const I18N={
+es:{set:'Ajustes',ui:'Idioma de la aplicación',prof:'Perfil activo',np:'+ Nuevo perfil',dp:'Eliminar perfil',pin:'PIN del perfil (vacío = sin PIN)',th:'Tema de color',lv:'Idioma de voz y micrófono',rt:'Velocidad de voz',pt:'Tono de voz',vl:'Volumen',fs:'Tamaño de texto',sg:'Saludar al abrir',tv:'Probar voz',cl:'Cerrar',go:'Entrar',ph:'Diga «Jarvis…» o escriba',on:'SISTEMAS EN LÍNEA',ea:'ESCUCHA ACTIVA · DIGA «JARVIS»',lg:'ESCUCHANDO…',themes:['Azul (normal)','Verde','Naranja','Rojo','Blanco y negro'],
+boot:'Sistemas en línea. Buenos días, señor {n}.',hi:'Bienvenido, señor {n}. ¿En qué puedo servirle?',who:'Soy J.A.R.V.I.S., su asistente personal, señor. A su servicio, bajo la guía de Dios.',thx:'Un placer, señor.',time:'Son las {t}, señor.',date:'Hoy es {d}.',ch:'Cara.',ct:'Cruz.',dice:'Ha salido el {n}.',bat:'Batería al {b}%. Conexión: {o}. Todos los sistemas operativos, señor.',ol:'en línea',of:'sin conexión',tset:'Hecho. Se lo recordaré en {n} {u}.',td:'su temporizador ha terminado',tdone:'Señor, {x}.',nok:'Anotado, señor.',nn:'No tiene notas guardadas.',nr:'Sus notas: {x}',nd:'Notas eliminadas.',sw1:'Cronómetro iniciado.',sw2:'Han transcurrido {m} minutos y {s} segundos.',op:'Abriendo {x}.',se:'Buscando, señor.',tr:'Abriendo el traductor, señor.',res:'El resultado es {x}.',help:'Hora, fecha, cálculos, temporizadores, notas, cronómetro, estado del sistema, búsquedas, apps web, chistes, versículos y conversación libre.',unk:'No he comprendido, señor. Diga «ayuda» para ver mis funciones.',wait:'Un momento, señor.',cok:'Núcleo de inteligencia conectado, señor.',cbad:'No he podido conectar con mi núcleo, señor.',cnone:'El núcleo no devolvió respuesta, señor.',nosr:'Este navegador no admite reconocimiento de voz.',perm:'Necesito permiso de micrófono, señor.',pinbad:'PIN incorrecto.',last:'Debe quedar al menos un perfil, señor.',ok:'Hecho, señor.',tvt:'A su servicio, señor {n}.',
+jokes:['¿Por qué los programadores confunden Halloween con Navidad? Porque 31 de octubre es igual a 25 de diciembre.','Tengo un chiste sobre UDP, pero no sé si le llegará.'],verses:['Salmo 23:1 — El Señor es mi pastor, nada me faltará.','Josué 1:9 — Sé fuerte y valiente; Dios está contigo dondequiera que vayas.','Proverbios 3:5 — Confía en el Señor con todo tu corazón.','Isaías 41:10 — No temas, porque yo estoy contigo.']},
+en:{set:'Settings',ui:'App language',prof:'Active profile',np:'+ New profile',dp:'Delete profile',pin:'Profile PIN (empty = no PIN)',th:'Color theme',lv:'Voice and microphone language',rt:'Voice speed',pt:'Voice pitch',vl:'Volume',fs:'Text size',sg:'Greet on open',tv:'Test voice',cl:'Close',go:'Enter',ph:'Say «Jarvis…» or type',on:'SYSTEMS ONLINE',ea:'ALWAYS LISTENING · SAY «JARVIS»',lg:'LISTENING…',themes:['Blue (default)','Green','Orange','Red','Black and white'],
+boot:'Systems online. Good day, sir {n}.',hi:'Welcome, sir {n}. How may I help you?',who:'I am J.A.R.V.I.S., your personal assistant, sir. At your service, under God’s guidance.',thx:'My pleasure, sir.',time:'It is {t}, sir.',date:'Today is {d}.',ch:'Heads.',ct:'Tails.',dice:'It rolled a {n}.',bat:'Battery at {b}%. Connection: {o}. All systems operational, sir.',ol:'online',of:'offline',tset:'Done. I will remind you in {n} {u}.',td:'your timer has finished',tdone:'Sir, {x}.',nok:'Noted, sir.',nn:'You have no saved notes.',nr:'Your notes: {x}',nd:'Notes deleted.',sw1:'Stopwatch started.',sw2:'{m} minutes and {s} seconds have elapsed.',op:'Opening {x}.',se:'Searching, sir.',tr:'Opening the translator, sir.',res:'The result is {x}.',help:'Time, date, math, timers, notes, stopwatch, system status, searches, web apps, jokes, verses and free conversation.',unk:'I did not understand, sir. Say «help» to see my functions.',wait:'One moment, sir.',cok:'Intelligence core connected, sir.',cbad:'I could not reach my core, sir.',cnone:'The core returned no answer, sir.',nosr:'This browser does not support speech recognition.',perm:'I need microphone permission, sir.',pinbad:'Wrong PIN.',last:'At least one profile must remain, sir.',ok:'Done, sir.',tvt:'At your service, sir {n}.',
+jokes:['Why do programmers confuse Halloween and Christmas? Because Oct 31 equals Dec 25.','I have a joke about UDP, but I am not sure you will get it.'],verses:['Psalm 23:1 — The Lord is my shepherd; I shall not want.','Joshua 1:9 — Be strong and courageous; God is with you wherever you go.','Proverbs 3:5 — Trust in the Lord with all your heart.','Isaiah 41:10 — Do not fear, for I am with you.']},
+fr:{set:'Réglages',ui:'Langue de l’application',prof:'Profil actif',np:'+ Nouveau profil',dp:'Supprimer le profil',pin:'PIN du profil (vide = sans PIN)',th:'Thème de couleur',lv:'Langue de la voix et du micro',rt:'Vitesse de la voix',pt:'Hauteur de la voix',vl:'Volume',fs:'Taille du texte',sg:'Saluer à l’ouverture',tv:'Tester la voix',cl:'Fermer',go:'Entrer',ph:'Dites « Jarvis… » ou écrivez',on:'SYSTÈMES EN LIGNE',ea:'ÉCOUTE ACTIVE · DITES « JARVIS »',lg:'J’ÉCOUTE…',themes:['Bleu (normal)','Vert','Orange','Rouge','Noir et blanc'],
+boot:'Systèmes en ligne. Bonjour, monsieur {n}.',hi:'Bienvenue, monsieur {n}. Que puis-je faire pour vous ?',who:'Je suis J.A.R.V.I.S., votre assistant personnel, monsieur. À votre service, sous la guidance de Dieu.',thx:'Avec plaisir, monsieur.',time:'Il est {t}, monsieur.',date:'Nous sommes le {d}.',ch:'Face.',ct:'Pile.',dice:'Le dé affiche {n}.',bat:'Batterie à {b}%. Connexion : {o}. Tous les systèmes sont opérationnels, monsieur.',ol:'en ligne',of:'hors ligne',tset:'C’est fait. Je vous le rappellerai dans {n} {u}.',td:'votre minuteur est terminé',tdone:'Monsieur, {x}.',nok:'C’est noté, monsieur.',nn:'Vous n’avez aucune note.',nr:'Vos notes : {x}',nd:'Notes supprimées.',sw1:'Chronomètre lancé.',sw2:'{m} minutes et {s} secondes se sont écoulées.',op:'J’ouvre {x}.',se:'Je cherche, monsieur.',tr:'J’ouvre le traducteur, monsieur.',res:'Le résultat est {x}.',help:'Heure, date, calculs, minuteurs, notes, chronomètre, état du système, recherches, applications web, blagues, versets et conversation libre.',unk:'Je n’ai pas compris, monsieur. Dites « aide » pour voir mes fonctions.',wait:'Un instant, monsieur.',cok:'Noyau d’intelligence connecté, monsieur.',cbad:'Je n’ai pas pu joindre mon noyau, monsieur.',cnone:'Le noyau n’a donné aucune réponse, monsieur.',nosr:'Ce navigateur ne gère pas la reconnaissance vocale.',perm:'J’ai besoin de l’accès au micro, monsieur.',pinbad:'PIN incorrect.',last:'Il doit rester au moins un profil, monsieur.',ok:'C’est fait, monsieur.',tvt:'À votre service, monsieur {n}.'},
+de:{set:'Einstellungen',ui:'App-Sprache',prof:'Aktives Profil',np:'+ Neues Profil',dp:'Profil löschen',pin:'Profil-PIN (leer = keine PIN)',th:'Farbthema',lv:'Sprache für Stimme und Mikrofon',rt:'Sprechtempo',pt:'Stimmhöhe',vl:'Lautstärke',fs:'Textgröße',sg:'Beim Öffnen begrüßen',tv:'Stimme testen',cl:'Schließen',go:'Eintreten',ph:'Sagen Sie «Jarvis…» oder tippen',on:'SYSTEME ONLINE',ea:'DAUERHAFT AKTIV · SAGEN SIE «JARVIS»',lg:'ICH HÖRE…',themes:['Blau (normal)','Grün','Orange','Rot','Schwarz-Weiß'],
+boot:'Systeme online. Guten Tag, Herr {n}.',hi:'Willkommen, Herr {n}. Wie kann ich helfen?',who:'Ich bin J.A.R.V.I.S., Ihr persönlicher Assistent. Zu Ihren Diensten, unter Gottes Führung.',thx:'Gern geschehen.',time:'Es ist {t} Uhr.',date:'Heute ist {d}.',ch:'Kopf.',ct:'Zahl.',dice:'Es ist eine {n}.',bat:'Akku bei {b}%. Verbindung: {o}. Alle Systeme funktionieren einwandfrei.',ol:'online',of:'offline',tset:'Erledigt. Ich erinnere Sie in {n} {u}.',td:'Ihr Timer ist abgelaufen',tdone:'{x}.',nok:'Notiert.',nn:'Sie haben keine Notizen.',nr:'Ihre Notizen: {x}',nd:'Notizen gelöscht.',sw1:'Stoppuhr gestartet.',sw2:'{m} Minuten und {s} Sekunden sind vergangen.',op:'Öffne {x}.',se:'Ich suche.',tr:'Öffne den Übersetzer.',res:'Das Ergebnis ist {x}.',help:'Uhrzeit, Datum, Rechnen, Timer, Notizen, Stoppuhr, Systemstatus, Suche, Web-Apps, Witze, Verse und freies Gespräch.',unk:'Das habe ich nicht verstanden. Sagen Sie «Hilfe» für meine Funktionen.',wait:'Einen Moment.',cok:'Intelligenzkern verbunden.',cbad:'Ich konnte meinen Kern nicht erreichen.',cnone:'Der Kern hat nicht geantwortet.',nosr:'Dieser Browser unterstützt keine Spracherkennung.',perm:'Ich brauche die Mikrofonerlaubnis.',pinbad:'Falsche PIN.',last:'Mindestens ein Profil muss bleiben.',ok:'Erledigt.',tvt:'Zu Ihren Diensten, Herr {n}.'},
+it:{set:'Impostazioni',ui:'Lingua dell’app',prof:'Profilo attivo',np:'+ Nuovo profilo',dp:'Elimina profilo',pin:'PIN del profilo (vuoto = nessun PIN)',th:'Tema colore',lv:'Lingua di voce e microfono',rt:'Velocità della voce',pt:'Tono della voce',vl:'Volume',fs:'Dimensione testo',sg:'Saluta all’apertura',tv:'Prova la voce',cl:'Chiudi',go:'Entra',ph:'Dica «Jarvis…» o scriva',on:'SISTEMI ONLINE',ea:'ASCOLTO ATTIVO · DICA «JARVIS»',lg:'IN ASCOLTO…',themes:['Blu (normale)','Verde','Arancione','Rosso','Bianco e nero'],
+boot:'Sistemi online. Buongiorno, signor {n}.',hi:'Benvenuto, signor {n}. Come posso aiutarla?',who:'Sono J.A.R.V.I.S., il suo assistente personale, signore. A sua disposizione, sotto la guida di Dio.',thx:'Con piacere, signore.',time:'Sono le {t}, signore.',date:'Oggi è {d}.',ch:'Testa.',ct:'Croce.',dice:'È uscito il {n}.',bat:'Batteria al {b}%. Connessione: {o}. Tutti i sistemi operativi, signore.',ol:'online',of:'offline',tset:'Fatto. Glielo ricorderò tra {n} {u}.',td:'il suo timer è terminato',tdone:'Signore, {x}.',nok:'Annotato, signore.',nn:'Non ha note salvate.',nr:'Le sue note: {x}',nd:'Note eliminate.',sw1:'Cronometro avviato.',sw2:'Sono trascorsi {m} minuti e {s} secondi.',op:'Apro {x}.',se:'Cerco, signore.',tr:'Apro il traduttore, signore.',res:'Il risultato è {x}.',help:'Ora, data, calcoli, timer, note, cronometro, stato del sistema, ricerche, app web, barzellette, versetti e conversazione libera.',unk:'Non ho capito, signore. Dica «aiuto» per vedere le mie funzioni.',wait:'Un momento, signore.',cok:'Nucleo di intelligenza collegato, signore.',cbad:'Non sono riuscito a raggiungere il mio nucleo, signore.',cnone:'Il nucleo non ha risposto, signore.',nosr:'Questo browser non supporta il riconoscimento vocale.',perm:'Ho bisogno del permesso per il microfono, signore.',pinbad:'PIN errato.',last:'Deve restare almeno un profilo, signore.',ok:'Fatto, signore.',tvt:'A sua disposizione, signor {n}.'},
+ro:{set:'Setări',ui:'Limba aplicației',prof:'Profil activ',np:'+ Profil nou',dp:'Șterge profilul',pin:'PIN profil (gol = fără PIN)',th:'Temă de culoare',lv:'Limba vocii și a microfonului',rt:'Viteza vocii',pt:'Tonul vocii',vl:'Volum',fs:'Mărimea textului',sg:'Salută la deschidere',tv:'Testează vocea',cl:'Închide',go:'Intră',ph:'Spuneți «Jarvis…» sau scrieți',on:'SISTEME ONLINE',ea:'ASCULTARE ACTIVĂ · SPUNEȚI «JARVIS»',lg:'ASCULT…',themes:['Albastru (normal)','Verde','Portocaliu','Roșu','Alb și negru'],
+boot:'Sisteme online. Bună ziua, domnule {n}.',hi:'Bun venit, domnule {n}. Cu ce vă pot ajuta?',who:'Sunt J.A.R.V.I.S., asistentul dumneavoastră personal, domnule. La dispoziția dumneavoastră, sub călăuzirea lui Dumnezeu.',thx:'Cu plăcere, domnule.',time:'Este ora {t}, domnule.',date:'Astăzi este {d}.',ch:'Cap.',ct:'Pajură.',dice:'A ieșit {n}.',bat:'Baterie la {b}%. Conexiune: {o}. Toate sistemele sunt operaționale, domnule.',ol:'online',of:'offline',tset:'Gata. Vă voi reaminti peste {n} {u}.',td:'temporizatorul s-a încheiat',tdone:'Domnule, {x}.',nok:'Notat, domnule.',nn:'Nu aveți notițe salvate.',nr:'Notițele dumneavoastră: {x}',nd:'Notițe șterse.',sw1:'Cronometru pornit.',sw2:'Au trecut {m} minute și {s} secunde.',op:'Deschid {x}.',se:'Caut, domnule.',tr:'Deschid traducătorul, domnule.',res:'Rezultatul este {x}.',help:'Ora, data, calcule, temporizatoare, notițe, cronometru, starea sistemului, căutări, aplicații web, glume, versete și conversație liberă.',unk:'Nu am înțeles, domnule. Spuneți «ajutor» pentru funcțiile mele.',wait:'Un moment, domnule.',cok:'Nucleul de inteligență este conectat, domnule.',cbad:'Nu am putut contacta nucleul meu, domnule.',cnone:'Nucleul nu a răspuns, domnule.',nosr:'Acest browser nu acceptă recunoașterea vocală.',perm:'Am nevoie de permisiunea pentru microfon, domnule.',pinbad:'PIN greșit.',last:'Trebuie să rămână cel puțin un profil, domnule.',ok:'Gata, domnule.',tvt:'La dispoziția dumneavoastră, domnule {n}.'},
+pt:{set:'Configurações',ui:'Idioma do aplicativo',prof:'Perfil ativo',np:'+ Novo perfil',dp:'Excluir perfil',pin:'PIN do perfil (vazio = sem PIN)',th:'Tema de cor',lv:'Idioma da voz e do microfone',rt:'Velocidade da voz',pt:'Tom da voz',vl:'Volume',fs:'Tamanho do texto',sg:'Cumprimentar ao abrir',tv:'Testar voz',cl:'Fechar',go:'Entrar',ph:'Diga «Jarvis…» ou escreva',on:'SISTEMAS ONLINE',ea:'ESCUTA ATIVA · DIGA «JARVIS»',lg:'ESCUTANDO…',themes:['Azul (normal)','Verde','Laranja','Vermelho','Preto e branco'],
+boot:'Sistemas online. Bom dia, senhor {n}.',hi:'Bem-vindo, senhor {n}. Em que posso ajudar?',who:'Sou o J.A.R.V.I.S., seu assistente pessoal, senhor. À sua disposição, sob a guia de Deus.',thx:'Um prazer, senhor.',time:'São {t}, senhor.',date:'Hoje é {d}.',ch:'Cara.',ct:'Coroa.',dice:'Saiu o {n}.',bat:'Bateria em {b}%. Conexão: {o}. Todos os sistemas operacionais, senhor.',ol:'online',of:'offline',tset:'Feito. Eu o lembrarei em {n} {u}.',td:'seu temporizador terminou',tdone:'Senhor, {x}.',nok:'Anotado, senhor.',nn:'Não há notas salvas.',nr:'Suas notas: {x}',nd:'Notas apagadas.',sw1:'Cronômetro iniciado.',sw2:'Passaram-se {m} minutos e {s} segundos.',op:'Abrindo {x}.',se:'Pesquisando, senhor.',tr:'Abrindo o tradutor, senhor.',res:'O resultado é {x}.',help:'Hora, data, cálculos, temporizadores, notas, cronômetro, estado do sistema, pesquisas, apps web, piadas, versículos e conversa livre.',unk:'Não entendi, senhor. Diga «ajuda» para ver minhas funções.',wait:'Um momento, senhor.',cok:'Núcleo de inteligência conectado, senhor.',cbad:'Não consegui contatar meu núcleo, senhor.',cnone:'O núcleo não respondeu, senhor.',nosr:'Este navegador não suporta reconhecimento de voz.',perm:'Preciso de permissão para o microfone, senhor.',pinbad:'PIN incorreto.',last:'Deve restar pelo menos um perfil, senhor.',ok:'Feito, senhor.',tvt:'À sua disposição, senhor {n}.'}};
+function T(k,o){const d=I18N[get('ui')]||I18N.es;let v=d[k];if(v===undefined)v=I18N.en[k];if(v===undefined)v=I18N.es[k];if(typeof v==='string'&&o)for(const a in o)v=v.replace('{'+a+'}',o[a]);return v}
+function applyUI(){document.documentElement.lang=get('ui');document.querySelectorAll('[data-i]').forEach(e=>{e.textContent=T(e.dataset.i)});document.querySelectorAll('[data-ip]').forEach(e=>{e.placeholder=T(e.dataset.ip)});
+  $('th').innerHTML='';Object.keys(THEMES).forEach((n,i)=>{const o=document.createElement('option');o.value=n;o.textContent=T('themes')[i];$('th').appendChild(o)});$('th').value=get('theme');
+  $('ui').innerHTML='';Object.keys(UIN).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=UIN[k];$('ui').appendChild(o)});$('ui').value=get('ui');
+  $('st').textContent=T(listening?'ea':'on')}
+const rg=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const LANGS={'Español':'es-ES','English':'en-US','Français':'fr-FR','Deutsch':'de-DE','Italiano':'it-IT','Português':'pt-BR','日本語':'ja-JP','한국어':'ko-KR','中文':'zh-CN','Русский':'ru-RU','العربية':'ar-SA','हिन्दी':'hi-IN','Türkçe':'tr-TR','Nederlands':'nl-NL','Polski':'pl-PL','Svenska':'sv-SE','עברית':'he-IL','Ελληνικά':'el-GR','Українська':'uk-UA','Tiếng Việt':'vi-VN','Bahasa Indonesia':'id-ID','ไทย':'th-TH','Català':'ca-ES','Română':'ro-RO','Čeština':'cs-CZ','Dansk':'da-DK','Suomi':'fi-FI','Norsk':'nb-NO','Magyar':'hu-HU'};
+for(const k in LANGS){const o=document.createElement('option');o.value=LANGS[k];o.textContent=k;$('lang').appendChild(o)}
+let voices=[];
+function loadVoices(){
+  voices=speechSynthesis.getVoices();const l=$('lang').value.slice(0,2);
+  const f=voices.filter(v=>v.lang.toLowerCase().startsWith(l));
+  const score=v=>/natural|neural|premium|enhanced|online|siri|google/i.test(v.name)?0:1;
+  f.sort((a,b)=>score(a)-score(b));
+  $('voice').innerHTML='';f.forEach(v=>{const o=document.createElement('option');o.value=v.name;o.textContent=(score(v)==0?'★ ':'')+v.name;$('voice').appendChild(o)});const sv2=get('voice');if(sv2&&[...$('voice').options].some(o=>o.value===sv2))$('voice').value=sv2;
+}
+$('lang').value=get('lang');
+if('speechSynthesis' in window){speechSynthesis.onvoiceschanged=loadVoices;loadVoices()}
+$('voice').onchange=()=>set('voice',$('voice').value);
+$('lang').onchange=()=>{set('lang',$('lang').value);set('voice','');loadVoices();if(listening){stopEar();startEar()}};
+// Cuerpo: esfera HUD estilo Jarvis
+const P=[...Array(70)].map(()=>({a:Math.random()*7,r:70+Math.random()*130,s:(Math.random()-.5)*.02,z:Math.random()}));
+function ring(cx,cy,r,w,dash,rot,al){x.save();x.translate(cx,cy);x.rotate(rot);x.strokeStyle=rg(TH.c[1],al);x.lineWidth=w;x.setLineDash(dash);x.beginPath();x.arc(0,0,r,0,7);x.stroke();x.restore()}
+function draw(){
+  t+=.02;const e=speaking?1:(listening&&awake>Date.now()?.7:.3+.08*Math.sin(t));energy+=(e-energy)*.08;
+  x.clearRect(0,0,680,680);const cx=340,cy=340+Math.sin(t*1.2)*8;
+  const R=80+energy*18,g=x.createRadialGradient(cx,cy,5,cx,cy,R*2.3);
+  g.addColorStop(0,rg(TH.c[0],1));g.addColorStop(.25,rg(TH.c[1],.85));g.addColorStop(.6,rg(TH.c[2],.25));g.addColorStop(1,rg(TH.c[2],0));
+  x.fillStyle=g;x.beginPath();x.arc(cx,cy,R*2.3,0,7);x.fill();
+  ring(cx,cy,R+40,3,[60,20],t,.9);ring(cx,cy,R+62,1.5,[4,8],-t*1.4,.7);ring(cx,cy,R+88,6,[120,40,10,40],t*.6,.6);ring(cx,cy,R+112,1,[2,6],t*.3,.5);
+  ring(cx,cy,R+20,2,[],0,.35+energy*.3);
+  P.forEach(p=>{p.a+=p.s*(1+energy*3);const rr=p.r+energy*25;x.fillStyle=rg(TH.c[0],.3+.5*p.z);x.fillRect(cx+Math.cos(p.a)*rr,cy+Math.sin(p.a)*rr*.9,2+p.z*2,2+p.z*2)});
+  requestAnimationFrame(draw)}
+draw();
+// Voz
+function detect(t,pref){
+  const S=[[/[\u0400-\u04FF]/,'ru-RU'],[/[\u0600-\u06FF]/,'ar-SA'],[/[\u0590-\u05FF]/,'he-IL'],[/[\u0370-\u03FF]/,'el-GR'],[/[\u0900-\u097F]/,'hi-IN'],[/[\u0E00-\u0E7F]/,'th-TH'],[/[\uAC00-\uD7AF]/,'ko-KR'],[/[\u3040-\u30FF]/,'ja-JP'],[/[\u4E00-\u9FFF]/,'zh-CN'],[/[ășțşţĂȘȚ]/,'ro-RO']];
+  for(const [r,l] of S)if(r.test(t))return l;
+  const W={'en-US':/\b(the|and|is|you|of|to|that|with|sir|for|this|are)\b/gi,'es-ES':/\b(el|la|los|las|que|de|es|y|un|una|con|por|para|señor)\b/gi,'fr-FR':/\b(le|les|des|est|et|une|vous|que|pour|avec|monsieur)\b/gi,'de-DE':/\b(der|die|das|und|ist|nicht|ein|ich|mit|sie|für)\b/gi,'it-IT':/\b(il|gli|che|di|un|una|con|per|signore)\b/gi,'pt-BR':/\b(os|as|que|um|uma|com|para|senhor|não)\b/gi,'nl-NL':/\b(de|het|een|en|niet|ik|je|met)\b/gi,'ro-RO':/\b(este|sunt|pentru|care|domnule|dar|mai|acum|bine)\b/gi,'tr-TR':/\b(bir|ve|bu|için|ile|efendim)\b/gi};
+  let best=null,n=0;for(const l in W){const c=(t.match(W[l])||[]).length+(l===pref?.5:0);if(c>n){n=c;best=l}}if(n<1)return null;
+  return best}
+function pickVoice(lang){
+  const nl=x=>x.toLowerCase().replace('_','-'),p=nl(lang).slice(0,2);
+  const f=voices.filter(v=>nl(v.lang).startsWith(p));if(!f.length)return null;
+  const sel=f.find(v=>v.name===$('voice').value);if(sel)return sel;
+  const sc=v=>(/natural|neural|premium|enhanced|siri|google/i.test(v.name)?0:2)+(nl(v.lang)===nl(lang)?0:1);
+  return f.sort((a,b)=>sc(a)-sc(b))[0]}
+function say(m,lang){
+  add('j','JARVIS: '+m);
+  if(!('speechSynthesis' in window))return;
+  const L=lang||detect(m,LOC[get('ui')])||$('lang').value;
+  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(m);u.lang=L;
+  const v=pickVoice(L);if(v)u.voice=v;u.rate=get('rate');u.pitch=get('pitch');u.volume=get('vol');
+  u.onstart=()=>{speaking=true;if(rec)try{rec.stop()}catch(e){}};u.onend=()=>{speaking=false;if(listening)setTimeout(startRec,300)};speechSynthesis.speak(u)}
+function add(c,m){const d=document.createElement('div');d.className=c;d.textContent=m;log.appendChild(d);log.scrollTop=log.scrollHeight}
+// Escucha permanente con palabra de activación
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+function startRec(){
+  if(!SR||!listening||speaking)return;
+  rec=new SR();rec.lang=$('lang').value;rec.continuous=true;rec.interimResults=false;
+  rec.onresult=ev=>{const s=ev.results[ev.results.length-1][0].transcript.trim();
+    const m=s.match(/\b(j[aá]rvis|yarvis|jarvi|harvis|d[sz]arvis)\b[\s,.:]*(.*)/i);
+    if(m){awake=Date.now()+9000;$('st').textContent=T('lg');if(m[2])handle(m[2]);else say(rnd(['Dígame, señor.','A sus órdenes.','Lo escucho, señor.']))}
+    else if(awake>Date.now())handle(s)};
+  rec.onend=()=>{if(listening&&!speaking)setTimeout(startRec,250)};
+  rec.onerror=e=>{if(e.error==='not-allowed'){listening=false;$('ear').classList.remove('on');say(T('perm'))}};
+  try{rec.start()}catch(e){}}
+function startEar(){if(!SR)return say(T('nosr'));listening=true;$('ear').classList.add('on');$('st').textContent=T('ea');startRec()}
+function stopEar(){listening=false;$('ear').classList.remove('on');$('st').textContent=T('on');try{rec&&rec.stop()}catch(e){}}
+$('ear').onclick=()=>listening?stopEar():startEar();
+$('mic').onclick=()=>{if(!SR)return say(T('nosr'));const r=new SR();r.lang=$('lang').value;r.onresult=e=>handle(e.results[0][0].transcript);r.start()};
+// Funciones
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+const verses=["Salmo 23:1 — El Señor es mi pastor, nada me faltará.","Josué 1:9 — Sé fuerte y valiente; Dios está contigo dondequiera que vayas.","Filipenses 4:13 — Todo lo puedo en Cristo que me fortalece.","Proverbios 3:5 — Confía en el Señor con todo tu corazón.","Isaías 41:10 — No temas, porque yo estoy contigo."];
+const jokes=["¿Por qué los programadores confunden Halloween con Navidad? Porque 31 de octubre es igual a 25 de diciembre.","Tengo un chiste sobre UDP, pero no sé si le llegará.","Un byte entra a un bar y pide una cerveza. El camarero dice: ¿Quiere un bit más?"];
+function save(){set('notes',notes)}
+function handle(raw){
+  raw=raw.trim();const q=raw.toLowerCase();if(!q)return;add('u',DB.cur+': '+raw);awake=Date.now()+9000;const h=new Date(),L=LOC[get('ui')];
+  const sv=raw.match(/^servidor\s+(https:\/\/\S+)/i);if(sv){try{localStorage.setItem('jw',sv[1])}catch(e){}return say(T('cok'))}
+  if(/\b(time|hora|heure|uhrzeit|uhr|ora)\b/.test(q))return say(T('time',{t:h.toLocaleTimeString(L,{hour:'2-digit',minute:'2-digit'})}));
+  if(/fecha|\bdate\b|d[ií]a es hoy|today|datum|heute|oggi|hoje|aujourd|azi|ast[aă]zi|\bdata\b/.test(q))return say(T('date',{d:h.toLocaleDateString(L,{weekday:'long',day:'numeric',month:'long',year:'numeric'})}));
+  if(/vers[ií]culo|biblia|bible|versetto|oraci[oó]n|prayer/.test(q))return say(rnd(T('verses')));
+  if(/chiste|broma|joke|blague|witz|barzelletta|piada|glum[aă]/.test(q))return say(rnd(T('jokes')));
+  if(/moneda|cara o cruz|coin|pile ou face|m[uü]nze|moneta|moeda|moned[aă]/.test(q))return say(Math.random()<.5?T('ch'):T('ct'));
+  if(/\bdado|dice|w[uü]rfel|\bdadi|\bzar/.test(q))return say(T('dice',{n:1+Math.floor(Math.random()*6)}));
+  if(/bater[ií]a|estado del sistema|diagn[oó]stico|battery|batterie|batteria|baterie|status/.test(q)){const on=navigator.onLine?T('ol'):T('of');if(navigator.getBattery)return navigator.getBattery().then(b=>say(T('bat',{b:Math.round(b.level*100),o:on})));return say(T('bat',{b:'--',o:on}))}
+  let m=q.match(/(temporizador|recu[eé]rdame|recordatorio|timer|remind|rappelle|minuteur|erinnere|promemoria|lembrete|aminte[sș]te|amintește).*?(\d+)\s*(seg\w*|sec\w*|sek\w*|min\w*|hou\w*|hor\w*|heur\w*|stund\w*|ora|ore|or[aă]|secund\w*|minut\w*)(?:\s*(?:para|de que|que|to|that|pour|zu|per|s[aă])\s+(.+))?/);
+  if(m){const u=m[3],s=+m[2]*(/^(seg|sec|sek)/.test(u)?1:/^min/.test(u)?60:3600),txt=m[4]||T('td');setTimeout(()=>{say(T('tdone',{x:txt}));if(navigator.vibrate)navigator.vibrate([300,150,300]);if('Notification' in window&&Notification.permission==='granted')new Notification('JARVIS',{body:txt})},s*1000);
+    if('Notification' in window&&Notification.permission==='default')Notification.requestPermission();return say(T('tset',{n:m[2],u:u}))}
+  const NP=/^(anota|nota|apunta|note|write down|remember|notiere|annota|anote|noteaz[aă])\s*(que|that|:)?\s*/i;
+  if(NP.test(q)){notes.push(raw.replace(NP,''));save();return say(T('nok'))}
+  if(/mis notas|lee las notas|my notes|mes notes|meine notizen|le mie note|minhas notas|not[iî][tț]ele mele/.test(q))return say(notes.length?T('nr',{x:notes.join('. ')}):T('nn'));
+  if(/borra.*notas|delete.*notes|supprime.*notes|l[oö]sche.*notizen|elimina.*note|apague.*notas/.test(q)){notes=[];save();return say(T('nd'))}
+  if(/cron[oó]metro|stopwatch|chronom|stoppuhr|cronometro|cronometru/.test(q)){if(!sw0){sw0=Date.now();return say(T('sw1'))}const sc=Math.round((Date.now()-sw0)/1000);sw0=0;return say(T('sw2',{m:Math.floor(sc/60),s:sc%60}))}
+  m=q.match(/(?:abre|open|ouvre|[oö]ffne|apri|abra|deschide)\s+(youtube|google|maps|wikipedia|spotify|whatsapp)/);
+  if(m){const u={youtube:'https://youtube.com',google:'https://google.com',maps:'https://maps.google.com',wikipedia:'https://wikipedia.org',spotify:'https://open.spotify.com',whatsapp:'https://web.whatsapp.com'}[m[1]];window.open(u,'_blank','noopener');return say(T('op',{x:m[1]}))}
+  m=q.match(/(?:busca|buscar|search|cherche|suche|cerca|pesquisa|caut[aă])\s+(.+)/);
+  if(m){window.open('https://www.google.com/search?q='+encodeURIComponent(m[1]),'_blank','noopener');return say(T('se'))}
+  m=q.match(/(?:traduce|traducir)\s+(.+?)\s+(?:al|a)\s+(\w+)/);
+  if(m){window.open('https://translate.google.com/?sl=auto&tl='+({inglés:'en',ingles:'en',frances:'fr',francés:'fr',alemán:'de',italiano:'it',portugués:'pt',japonés:'ja',chino:'zh-CN',árabe:'ar',ruso:'ru',español:'es'}[m[2]]||'en')+'&text='+encodeURIComponent(m[1]),'_blank','noopener');return say(T('tr'))}
+  m=q.match(/(?:di|habla|pronuncia)\s+(.+?)\s+en\s+(\w+)/);
+  if(m){const c={ingl:'en-US',franc:'fr-FR',alem:'de-DE',ital:'it-IT',portu:'pt-BR',japo:'ja-JP',chin:'zh-CN',ruso:'ru-RU',arab:'ar-SA',espa:'es-ES'};const k=Object.keys(c).find(k=>m[2].startsWith(k));return say(m[1],k?c[k]:null)}
+  const e=q.replace(/cu[aá]nto es|calcula|what is|calculate|combien font|berechne|quanto fa|calcule/g,'').replace(/\bpor\b|x|\btimes\b|\bfois\b|\bmal\b/g,'*').replace(/m[aá]s|\bplus\b|\bmore\b/g,'+').replace(/menos|\bminus\b|\bmoins\b|\bmeno\b/g,'-').replace(/entre|dividido|divided by|divis[eé] par|geteilt durch|diviso/g,'/').replace(/,/g,'.');
+  if(/^[\d\s+\-*/().]+$/.test(e)&&/\d/.test(e)){try{return say(T('res',{x:Function('"use strict";return ('+e+')')()}))}catch(_){}}
+  if(/qui[eé]n eres|tu nombre|who are you|qui es-tu|wer bist du|chi sei|quem [eé] voc[eê]|cine e[sș]ti/.test(q))return say(T('who'));
+  if(/gracias|thank|merci|danke|grazie|obrigad|mul[tț]umesc/.test(q))return say(T('thx'));
+  if(/\bhola\b|buenos|buenas|hello|\bhi\b|bonjour|salut|hallo|ciao|ol[aá]|bun[aă]|\bsalut/.test(q))return say(T('hi',{n:DB.cur}));
+  if(/ayuda|qu[eé] puedes|\bhelp\b|\baide\b|hilfe|aiuto|ajuda|ajutor/.test(q))return say(T('help'));
+  let W='';try{W=localStorage.getItem('jw')||''}catch(e){}
+  if(!W)return say(T('unk'));
+  say(T('wait'));
+  fetch(W,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:raw,lang:L})}).then(r=>{if(!r.ok)throw new Error('code '+r.status);return r.json()}).then(d=>say(d.reply||T('cnone'))).catch(err=>{add('u','[Detalle técnico: '+err.message+' | '+W+']');say(T('cbad'))})}
+$('go').onclick=()=>{handle(inp.value);inp.value=''};
+inp.onkeydown=e=>{if(e.key==='Enter')$('go').click()};
+// Ajustes y perfiles
+Object.keys(THEMES).forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('th').appendChild(o)});
+async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('jv|'+t));return [...new Uint8Array(b)].map(v=>v.toString(16).padStart(2,'0')).join('')}
+function refProf(){$('prof').innerHTML='';Object.keys(DB.p).forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('prof').appendChild(o)});$('prof').value=DB.cur}
+function applyProfile(){notes=(pf().notes||[]).slice();applyTheme();$('lang').value=get('lang');if('speechSynthesis' in window)loadVoices();$('rt').value=get('rate');$('pt').value=get('pitch');$('vl').value=get('vol');$('fs').value=get('fs');applyUI();$('sg').checked=get('greet');$('pin').value='';refProf()}
+$('ui').onchange=()=>{const k=$('ui').value;set('ui',k);set('lang',LOC[k]);set('voice','');$('lang').value=LOC[k];if('speechSynthesis' in window)loadVoices();applyUI()};
+$('cfg').onclick=()=>{$('m').hidden=false};$('cl').onclick=()=>{$('m').hidden=true};
+$('th').onchange=()=>{set('theme',$('th').value);applyTheme()};
+$('rt').oninput=()=>set('rate',+$('rt').value);$('pt').oninput=()=>set('pitch',+$('pt').value);$('vl').oninput=()=>set('vol',+$('vl').value);
+$('fs').oninput=()=>{set('fs',+$('fs').value);applyTheme()};$('sg').onchange=()=>set('greet',$('sg').checked);
+$('tv').onclick=()=>say(T('tvt',{n:DB.cur}));
+$('pin').onchange=async()=>{const v=$('pin').value.trim();set('pin',v?await sha(DB.cur+v):'');say(T('ok'))};
+$('np').onclick=()=>{const n=(prompt(T('np'))||'').trim().slice(0,20);if(!n)return;if(DB.p[n])return say('✗');DB.p[n]={};DB.cur=n;saveDB();applyProfile();say(T('ok'))};
+$('prof').onchange=async()=>{const n=$('prof').value,pn=DB.p[n].pin;if(pn){const t=prompt(T('pin'))||'';if(await sha(n+t)!==pn){say(T('pinbad'));$('prof').value=DB.cur;return}}DB.cur=n;saveDB();applyProfile();say(T('ok'))};
+$('dp').onclick=()=>{if(Object.keys(DB.p).length<2)return say(T('last'));if(!confirm(T('dp')+' '+DB.cur+'?'))return;delete DB.p[DB.cur];DB.cur=Object.keys(DB.p)[0];saveDB();applyProfile()};
+function needLock(){return Object.values(DB.p).some(v=>v.pin)}
+function showLock(){$('lk').hidden=false;$('lp').innerHTML='';Object.keys(DB.p).forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('lp').appendChild(o)});$('lp').value=DB.cur}
+$('lgo').onclick=async()=>{const n=$('lp').value,pn=DB.p[n].pin;if(pn&&await sha(n+$('lpin').value)!==pn){$('lmsg').textContent=T('pinbad');return}DB.cur=n;saveDB();$('lk').hidden=true;$('lpin').value='';applyProfile();start()};
+function start(){setTimeout(()=>{qp?handle(qp):(get('greet')&&say(T('boot',{n:DB.cur})))},500)}
+// Siri / Atajos: abrir con ?q=comando
+const qp=new URLSearchParams(location.search).get('q');
+applyProfile();if(needLock())showLock();else start();
+try{if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js')}catch(e){}
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+JARVIS - INSTALACION
+1) Suba estos 4 archivos (index.html, manifest.webmanifest, sw.js, icon.svg) a un hosting HTTPS gratuito (GitHub Pages, Netlify o Cloudflare Pages).
+2) iPhone: abra la URL en Safari > Compartir > Anadir a pantalla de inicio.
+   Android/PC: Chrome > Instalar app.
+3) SIRI: app Atajos > + > Abrir URL > https://SU-URL/index.html?q=hora > Ajustes del atajo > nombrelo "Jarvis hora".
+   Diga: "Oye Siri, Jarvis hora". Cambie q= por cualquier comando (q=chiste, q=bateria).
+4) Palabra "Jarvis": pulse el boton de la oreja con la app abierta. Los navegadores no permiten escuchar con la app cerrada o la pantalla bloqueada; eso exige app nativa.
